@@ -13,3 +13,49 @@ struct ReadyRing: View { let icon:String; let title:String; let detail:String; l
 struct InfoTile: View {let icon:String;let title:String;let subtitle:String;let tint:Color
     var body: some View {VStack(spacing:9){ZStack{RoundedRectangle(cornerRadius:10).fill(tint.opacity(0.12));Image(systemName:icon).font(.title2).foregroundStyle(tint)}.frame(width:46,height:46);Text(title).font(.headline);Text(subtitle).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)}.frame(maxWidth:.infinity).padding(14).background(RoundedRectangle(cornerRadius:14).fill(Color(nsColor:.controlBackgroundColor)))}
 }
+
+struct DeleteBar: View {
+    let selectedCount: Int
+    let totalCount: Int
+    let selectedSize: Int64
+    let permanent: Bool
+    let onToggleAll: (Bool) -> Void
+    let onDelete: () -> Void
+    var body: some View {
+        HStack(spacing: 12) {
+            Toggle("", isOn: Binding(get: { totalCount > 0 && selectedCount == totalCount }, set: onToggleAll))
+                .labelsHidden()
+                .toggleStyle(.checkbox)
+            Text("\(selectedCount)/\(totalCount) öğe seçildi")
+                .font(.headline)
+            Text("• \(selectedSize.formattedBytes)")
+                .foregroundStyle(.secondary)
+            Spacer()
+            if permanent {
+                Button(role: .destructive, action: onDelete) { Label("Kalıcı Sil", systemImage: "trash.slash") }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.red)
+                    .disabled(selectedCount == 0)
+            } else {
+                Button(action: onDelete) { Label("Çöp Kutusu'na Taşı", systemImage: "trash") }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Theme.accent)
+                    .disabled(selectedCount == 0)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 12).fill(Color(nsColor: .controlBackgroundColor)))
+    }
+}
+
+extension View {
+    func revealInFinder(_ path: String) -> some View {
+        contextMenu {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            } label: {
+                Label("Finder'da Göster", systemImage: "folder")
+            }
+        }
+    }
+}

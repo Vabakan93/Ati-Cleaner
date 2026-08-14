@@ -26,15 +26,58 @@ public enum MemoryService {
             }
         }
         guard result == KERN_SUCCESS else { return nil }
-        let page = UInt64(vm_kernel_page_size)
+        var pageSize: vm_size_t = 0
+        guard host_page_size(mach_host_self(), &pageSize) == KERN_SUCCESS else { return nil }
+        let page = UInt64(pageSize)
         let active = UInt64(stats.active_count) * page
         let inactive = UInt64(stats.inactive_count) * page
         let wired = UInt64(stats.wire_count) * page
         let compressed = UInt64(stats.compressor_page_count) * page
+        let cache = UInt64(stats.external_page_count) * page
         let used = active + inactive + wired + compressed
-        return MemorySnapshot(total: total, used: min(used, total), free: total > used ? total - used : 0, compressed: compressed)
+        return MemorySnapshot(total: total, used: min(used, total), free: total > used ? total - used : 0, compressed: compressed, cache: cache)
         #else
         return nil
         #endif
+    }
+
+    public static func freeUpMemory() -> MemoryReliefResult {
+        #if os(macOS)
+        let before = snapshot()?.used ?? 0
+        var freed: UInt64 = 0
+        if let zone = malloc_default_zone() {
+            freed += UInt64(malloc_zone_pressure_relief(zone, 0))
+        }
+        var purgeSucceeded = false
+        if !PrivilegedHelper.isInstalled() {
+            let source = Bundle.main.executablePath ?? CommandLine.arguments[0]
+            if PrivilegedHelper.install(sourceBinary: source) {
+                if let token = PrivilegedHelper.trigger() {
+                    purgeSucceeded = PrivilegedHelper.waitForCompletion(token: token)
+                }
+            }
+        } else if let token = PrivilegedHelper.trigger() {
+            purgeSucceeded = PrivilegedHelper.waitForCompletion(token: token)
+        }
+        if !purgeSucceeded { _ = runPurge() }
+        let after = snapshot()?.used ?? 0
+        return MemoryReliefResult(freed: freed, usedBefore: before, usedAfter: after, purgeSucceeded: purgeSucceeded)
+        #else
+        return MemoryReliefResult(freed: 0, usedBefore: 0, usedAfter: 0, purgeSucceeded: false)
+        #endif
+    }
+
+    public static func runPurge() -> Bool {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/purge")
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus == 0
+        } catch {
+            return false
+        }
     }
 }

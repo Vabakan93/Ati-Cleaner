@@ -20,6 +20,7 @@ public enum TrashScanner {
         let uid=getuid()
         if let volumes=try? FileManager.default.contentsOfDirectory(at: URL(fileURLWithPath:"/Volumes"), includingPropertiesForKeys:[.volumeIsRemovableKey], options:[.skipsHiddenFiles]) {
             for vol in volumes {
+                if SafetyPolicy.isExcludedVolume(vol.path) { continue }
                 let trash=vol.appendingPathComponent(".Trashes/\(uid)")
                 if FileManager.default.fileExists(atPath: trash.path) { out.append(.init(name:vol.lastPathComponent,url:trash,isExternal:true)) }
             }

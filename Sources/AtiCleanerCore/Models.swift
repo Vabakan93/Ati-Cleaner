@@ -12,6 +12,14 @@ public struct MemorySnapshot: Sendable {
     public let used: UInt64
     public let free: UInt64
     public let compressed: UInt64
+    public let cache: UInt64
+}
+
+public struct MemoryReliefResult: Sendable {
+    public let freed: UInt64
+    public let usedBefore: UInt64
+    public let usedAfter: UInt64
+    public let purgeSucceeded: Bool
 }
 
 public struct ScanProgress: Sendable {
@@ -33,9 +41,10 @@ public struct CleanableItem: Identifiable, Sendable, Hashable {
     public let size: Int64
     public let isDirectory: Bool
     public let date: Date?
+    public let isProtected: Bool
     public var isSelected: Bool
-    public init(name: String, path: String, size: Int64, isDirectory: Bool, date: Date? = nil, isSelected: Bool = true) {
-        self.id = path; self.name = name; self.path = path; self.size = size; self.isDirectory = isDirectory; self.date = date; self.isSelected = isSelected
+    public init(name: String, path: String, size: Int64, isDirectory: Bool, date: Date? = nil, isSelected: Bool = true, isProtected: Bool = false) {
+        self.id = path; self.name = name; self.path = path; self.size = size; self.isDirectory = isDirectory; self.date = date; self.isSelected = isSelected; self.isProtected = isProtected
     }
 }
 

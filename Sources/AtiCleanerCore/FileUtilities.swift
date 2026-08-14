@@ -1,5 +1,14 @@
 import Foundation
 
+public struct DeleteResult: Sendable {
+    public let deleted: [String]
+    public let failed: [(path: String, reason: String)]
+    public var succeeded: Int { deleted.count }
+    public init(deleted: [String], failed: [(path: String, reason: String)]) {
+        self.deleted = deleted; self.failed = failed
+    }
+}
+
 public enum FileUtilities {
     public static func recursiveSize(of url: URL, isCancelled: () -> Bool = { false }) -> Int64 {
         let fm = FileManager.default
@@ -19,17 +28,31 @@ public enum FileUtilities {
         return total
     }
 
-    public static func moveToTrash(paths: [String]) -> (succeeded: Int, failed: [String]) {
-        var ok = 0; var failed: [String] = []
+    public static func delete(paths: [String], permanent: Bool) -> DeleteResult {
+        permanent ? permanentDelete(paths: paths) : moveToTrash(paths: paths)
+    }
+
+    public static func moveToTrash(paths: [String]) -> DeleteResult {
+        var deleted: [String] = []; var failed: [(path: String, reason: String)] = []
         for path in paths {
-            guard SafetyPolicy.canDelete(path) else { failed.append("Blocked by safety policy: \(path)"); continue }
+            guard SafetyPolicy.canDelete(path) else { failed.append((path, "Güvenlik politikası tarafından engellendi")); continue }
             #if os(macOS)
-            do { _ = try FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil); ok += 1 }
-            catch { failed.append("\(path): \(error.localizedDescription)") }
+            do { _ = try FileManager.default.trashItem(at: URL(fileURLWithPath: path), resultingItemURL: nil); deleted.append(path) }
+            catch { failed.append((path, error.localizedDescription)) }
             #else
-            failed.append("Trash operation is supported on macOS only: \(path)")
+            failed.append((path, "Çöp kutusu yalnızca macOS'ta desteklenir"))
             #endif
         }
-        return (ok, failed)
+        return DeleteResult(deleted: deleted, failed: failed)
+    }
+
+    public static func permanentDelete(paths: [String]) -> DeleteResult {
+        var deleted: [String] = []; var failed: [(path: String, reason: String)] = []
+        for path in paths {
+            guard SafetyPolicy.canDelete(path) else { failed.append((path, "Güvenlik politikası tarafından engellendi")); continue }
+            do { try FileManager.default.removeItem(atPath: path); deleted.append(path) }
+            catch { failed.append((path, error.localizedDescription)) }
+        }
+        return DeleteResult(deleted: deleted, failed: failed)
     }
 }

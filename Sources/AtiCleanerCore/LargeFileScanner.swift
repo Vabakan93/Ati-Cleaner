@@ -11,6 +11,8 @@ public struct LargeFileScanner: Sendable {
         var out: [LargeFileResult] = []; var n: Int64 = 0
         for case let child as URL in e {
             if isCancelled() { break }
+            if SafetyPolicy.isExcludedVolume(child.path) { e.skipDescendants(); continue }
+            if SafetyPolicy.shouldSkipDescendants(of: child.path) { e.skipDescendants(); continue }
             if SafetyPolicy.shouldSkipDuringUserScan(child.path) { continue }
             guard let v = try? child.resourceValues(forKeys: keys), v.isSymbolicLink != true, v.isRegularFile == true else { continue }
             n += 1

@@ -13,6 +13,8 @@ public struct DuplicateScanner: Sendable {
         var bySize: [Int64: [URL]] = [:]; var seen: Int64 = 0
         for case let child as URL in e {
             if isCancelled() { return [] }
+            if SafetyPolicy.isExcludedVolume(child.path) { e.skipDescendants(); continue }
+            if SafetyPolicy.isHomeLibrary(child.path) || SafetyPolicy.shouldSkipDescendants(of: child.path) { e.skipDescendants(); continue }
             if child.path.contains("/.Trash") || child.path.contains("/.Trashes") || SafetyPolicy.shouldSkipDuringUserScan(child.path) { continue }
             guard let v = try? child.resourceValues(forKeys: keys), v.isSymbolicLink != true, v.isRegularFile == true else { continue }
             let size = Int64(v.fileSize ?? 0); guard size >= minSize else { continue }
