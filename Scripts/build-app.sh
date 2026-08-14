@@ -34,9 +34,8 @@ else
   echo "Warning: No AppIcon.icns or AppIcon.png found; app will use default icon."
 fi
 
-IDENTITY="${ATI_CODESIGN_IDENTITY:-}"
-if [[ -n "$IDENTITY" ]]; then
-  codesign --force --deep --options runtime --sign "$IDENTITY" "$BUNDLE"
+IDENTITY="${ATI_CODESIGN_IDENTITY:-Ati Cleaner}"
+if codesign --force --deep --sign "$IDENTITY" "$BUNDLE" >/dev/null 2>&1; then
   echo "Signed with: $IDENTITY"
 else
   codesign --force --deep --sign - "$BUNDLE" >/dev/null 2>&1 || true

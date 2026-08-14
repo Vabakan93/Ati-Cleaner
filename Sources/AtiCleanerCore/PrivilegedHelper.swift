@@ -6,6 +6,7 @@ public enum PrivilegedHelper {
     public static let plistPath = "/Library/LaunchDaemons/\(label).plist"
     public static let triggerPath = "/var/tmp/aticleaner-purge-trigger"
     public static let resultPath = "/var/tmp/aticleaner-purge-result"
+    public static let deleteRequestPath = "/var/tmp/aticleaner-delete-request"
 
     public static func isInstalled() -> Bool {
         FileManager.default.fileExists(atPath: installPath) &&
@@ -68,6 +69,45 @@ public enum PrivilegedHelper {
             Thread.sleep(forTimeInterval: 0.3)
         }
         return false
+    }
+
+    public static func deleteSystemPaths(_ paths: [String]) -> Bool {
+        let allowed = paths.filter(SafetyPolicy.canSystemDelete)
+        guard !allowed.isEmpty else { return false }
+        let data = allowed.joined(separator: "\n") + "\n"
+        guard (try? data.write(toFile: deleteRequestPath, atomically: false, encoding: .utf8)) != nil else { return false }
+        defer { try? FileManager.default.removeItem(atPath: deleteRequestPath) }
+        guard let token = trigger() else { return false }
+        return waitForCompletion(token: token, timeout: 60)
+    }
+
+    private static let systemTCCDB = "/Library/Application Support/com.apple.TCC/TCC.db"
+    private static let userTCCDB = FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Application Support/com.apple.TCC/TCC.db"
+
+    private static func sqlite(_ db: String, _ query: String) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
+        process.arguments = [db, query]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+            process.waitUntilExit()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            return String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            return nil
+        }
+    }
+
+    public static func fullDiskAccessStatus() -> Int? {
+        guard let out = sqlite(systemTCCDB, "SELECT auth_value FROM access WHERE service='kTCCServiceSystemPolicyAllFiles' AND client='com.aticleaner.app';") else { return nil }
+        return Int(out)
+    }
+
+    public static func fullDiskAccessGranted() -> Bool {
+        fullDiskAccessStatus() == 2
     }
 
     private static func daemonPlist() -> String {

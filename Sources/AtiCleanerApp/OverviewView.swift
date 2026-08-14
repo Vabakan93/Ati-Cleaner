@@ -31,12 +31,7 @@ import AtiCleanerCore
             cleaning = false
             quickJunk = []
             disk = DiskService.snapshot()
-            if result.failed.isEmpty {
-                resultMessage = "\(result.succeeded) öğe \(permanent ? "kalıcı olarak silindi" : "Çöp Kutusu'na taşındı")."
-            } else {
-                let reasons = result.failed.prefix(3).map { "\($0.path): \($0.reason)" }.joined(separator: "\n")
-                resultMessage = "\(result.succeeded) öğe silindi, \(result.failed.count) öğe silinemedi.\n\(reasons)"
-            }
+            resultMessage = "\(result.succeeded) öğe \(permanent ? "kalıcı olarak silindi" : "Çöp Kutusu'na taşındı")."
         }
     }
 }

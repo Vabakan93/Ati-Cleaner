@@ -9,6 +9,7 @@ enum Theme {
     static let trash = Color.cyan
     static let uninstall = Color.red
     static let memory = Color.green
+    static let system = Color.indigo
 }
 
 extension Int64 {

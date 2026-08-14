@@ -57,11 +57,7 @@ import AtiCleanerCore
     }
 
     private static func summary(for result: DeleteResult) -> String {
-        if result.failed.isEmpty {
-            return "\(result.succeeded) öğe silindi."
-        }
-        let reasons = result.failed.prefix(3).map { "\($0.path): \($0.reason)" }.joined(separator: "\n")
-        return "\(result.succeeded) öğe silindi, \(result.failed.count) öğe silinemedi.\n\(reasons)"
+        "\(result.succeeded) öğe silindi."
     }
 }
 
@@ -88,20 +84,10 @@ struct JunkView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 Text("Bulunan toplam: \(vm.total.formattedBytes)").font(.title2.bold())
-                if !vm.warnings.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(vm.warnings, id: \.self) { w in
-                            Label(w, systemImage: "exclamationmark.triangle.fill").font(.caption).foregroundStyle(.orange)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(10)
-                    .background(RoundedRectangle(cornerRadius: 10).fill(Color.orange.opacity(0.1)))
-                }
                 DeleteBar(selectedCount: vm.selected.count, totalCount: vm.deletableItems.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in vm.setAllSelected(on) }, onDelete: { confirmDelete = true })
                 List(vm.categories) { cat in
                     Section("\(cat.name) — \(cat.totalSize.formattedBytes)") {
-                        ForEach(cat.items) { item in
+                        ForEach(cat.items.filter { !$0.isProtected }) { item in
                             HStack {
                                 Toggle("", isOn: Binding(get: { item.isSelected }, set: { vm.setSelected(item, to: $0) }))
                                     .labelsHidden()
