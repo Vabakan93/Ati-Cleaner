@@ -112,12 +112,23 @@ struct SystemDataView: View {
                             .toggleStyle(.checkbox)
                             .disabled(item.isProtected)
                         Image(systemName: item.isProtected ? "lock" : "folder")
-                        Text(item.name)
-                        Text(item.path).font(.caption).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(item.name)
+                            Text(item.path).font(.caption2).foregroundStyle(.secondary).lineLimit(1).truncationMode(.middle)
+                        }
                         Spacer()
+                        RiskTag(isUnnecessary: item.isUnnecessary)
                         Text(item.size.formattedBytes).monospacedDigit().foregroundStyle(.secondary)
                     }
                 }
+                HStack(spacing: 14) {
+                    RiskTag(isUnnecessary: true)
+                    Text("Gereksiz — yüklü bir uygulaması yok, güvenle silinebilir (caches gibi)").font(.caption).foregroundStyle(.secondary)
+                    Image(systemName: "lock").font(.caption)
+                    Text("Korumalı sistem verisi — silinemez").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.top, 4)
             }
         }
         .padding(24)

@@ -14,6 +14,18 @@ struct InfoTile: View {let icon:String;let title:String;let subtitle:String;let 
     var body: some View {VStack(spacing:9){ZStack{RoundedRectangle(cornerRadius:10).fill(tint.opacity(0.12));Image(systemName:icon).font(.title2).foregroundStyle(tint)}.frame(width:46,height:46);Text(title).font(.headline);Text(subtitle).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)}.frame(maxWidth:.infinity).padding(14).background(RoundedRectangle(cornerRadius:14).fill(Color(nsColor:.controlBackgroundColor)))}
 }
 
+struct RiskTag: View {
+    let isUnnecessary: Bool
+    var body: some View {
+        Label("Gereksiz", systemImage: "checkmark.circle.fill")
+            .font(.caption2.weight(.semibold))
+            .padding(.horizontal, 7).padding(.vertical, 3)
+            .background(Capsule().fill(Color.green.opacity(0.18)))
+            .foregroundStyle(.green)
+            .opacity(isUnnecessary ? 1 : 0)
+    }
+}
+
 struct DeleteBar: View {
     let selectedCount: Int
     let totalCount: Int

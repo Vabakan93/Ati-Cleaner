@@ -51,7 +51,7 @@ public enum SafetyPolicy {
     public static func isSystemProtected(_ path: String) -> Bool {
         let name = URL(fileURLWithPath: path).lastPathComponent
         if name.hasPrefix("com.apple.") { return true }
-        return ["Apple", "Keychains", "GarageBand", "iLifeMediaBrowser"].contains(name)
+        return ["Apple", "Keychains", "GarageBand", "iLifeMediaBrowser", "Script Editor"].contains(name)
     }
 
     public static func canSystemDelete(_ path: String) -> Bool {
