@@ -83,11 +83,12 @@ public enum PrivilegedHelper {
 
     private static let systemTCCDB = "/Library/Application Support/com.apple.TCC/TCC.db"
     private static let userTCCDB = FileManager.default.homeDirectoryForCurrentUser.path + "/Library/Application Support/com.apple.TCC/TCC.db"
+    private static let bundleID = "com.aticleaner.app"
 
     private static func sqlite(_ db: String, _ query: String) -> String? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/sqlite3")
-        process.arguments = [db, query]
+        process.arguments = ["-readonly", db, query]
         let pipe = Pipe()
         process.standardOutput = pipe
         process.standardError = FileHandle.nullDevice
@@ -102,12 +103,18 @@ public enum PrivilegedHelper {
     }
 
     public static func fullDiskAccessStatus() -> Int? {
-        guard let out = sqlite(systemTCCDB, "SELECT auth_value FROM access WHERE service='kTCCServiceSystemPolicyAllFiles' AND client='com.aticleaner.app';") else { return nil }
-        return Int(out)
+        let query = "SELECT auth_value FROM access WHERE service='kTCCServiceSystemPolicyAllFiles' AND client='\(bundleID)';"
+        // FDA for user apps is recorded in the user TCC database.
+        if let out = sqlite(userTCCDB, query), let v = Int(out) { return v }
+        // Fall back to the system database (daemons/legacy installs).
+        if let out = sqlite(systemTCCDB, query), let v = Int(out) { return v }
+        return nil
     }
 
     public static func fullDiskAccessGranted() -> Bool {
-        fullDiskAccessStatus() == 2
+        if let status = fullDiskAccessStatus() { return status == 2 }
+        // The TCC databases are only readable with Full Disk Access; use that as a fallback probe.
+        return FileManager.default.isReadableFile(atPath: systemTCCDB)
     }
 
     private static func daemonPlist() -> String {
