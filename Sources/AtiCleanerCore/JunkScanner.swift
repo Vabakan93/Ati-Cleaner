@@ -10,6 +10,7 @@ public struct JunkCategory: Identifiable, Sendable, Hashable {
         self.id=id; self.name=name; self.icon=icon; self.roots=roots; self.items=items
     }
     public var totalSize: Int64 { items.reduce(0) { $0 + $1.size } }
+    public var deletableSize: Int64 { items.filter { !$0.isProtected }.reduce(0) { $0 + $1.size } }
 }
 
 public struct JunkScanner: Sendable {

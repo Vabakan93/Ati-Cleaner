@@ -86,7 +86,7 @@ import AtiCleanerCore
                 Text("Bulunan toplam: \(vm.total.formattedBytes)").font(.title2.bold())
                 DeleteBar(selectedCount: vm.selected.count, totalCount: vm.deletableItems.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in MainActor.assumeIsolated { vm.setAllSelected(on) } }, onDelete: { confirmDelete = true })
                 List(vm.categories) { cat in
-                    Section("\(cat.name) — \(cat.totalSize.formattedBytes)") {
+                    Section("\(cat.name) — \(cat.deletableSize.formattedBytes)") {
                         ForEach(cat.items.filter { !$0.isProtected }) { item in
                             HStack {
                                 Toggle("", isOn: Binding(get: { item.isSelected }, set: { vm.setSelected(item, to: $0) }))
