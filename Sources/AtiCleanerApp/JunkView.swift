@@ -13,7 +13,7 @@ import AtiCleanerCore
     var deletableItems: [CleanableItem] { allItems.filter { !$0.isProtected } }
     var selected: [CleanableItem] { deletableItems.filter(\.isSelected) }
     var selectedSize: Int64 { selected.reduce(0) { $0 + $1.size } }
-    var total: Int64 { allItems.reduce(0) { $0 + $1.size } }
+    var total: Int64 { deletableItems.reduce(0) { $0 + $1.size } }
 
     func scan() {
         guard !scanning else { return }
@@ -61,7 +61,7 @@ import AtiCleanerCore
     }
 }
 
-struct JunkView: View {
+@MainActor struct JunkView: View {
     @StateObject private var vm = JunkVM()
     @AppStorage("permanentDelete") private var permanentDelete = false
     @State private var confirmDelete = false
@@ -84,7 +84,7 @@ struct JunkView: View {
                 .frame(maxWidth: .infinity)
             } else {
                 Text("Bulunan toplam: \(vm.total.formattedBytes)").font(.title2.bold())
-                DeleteBar(selectedCount: vm.selected.count, totalCount: vm.deletableItems.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in vm.setAllSelected(on) }, onDelete: { confirmDelete = true })
+                DeleteBar(selectedCount: vm.selected.count, totalCount: vm.deletableItems.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in MainActor.assumeIsolated { vm.setAllSelected(on) } }, onDelete: { confirmDelete = true })
                 List(vm.categories) { cat in
                     Section("\(cat.name) — \(cat.totalSize.formattedBytes)") {
                         ForEach(cat.items.filter { !$0.isProtected }) { item in

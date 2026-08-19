@@ -61,7 +61,7 @@ import AtiCleanerCore
     }
 }
 
-struct DuplicatesView: View {
+@MainActor struct DuplicatesView: View {
     @StateObject private var vm = DupVM()
     @AppStorage("permanentDelete") private var permanentDelete = false
     @State private var confirmDelete = false
@@ -98,7 +98,7 @@ struct DuplicatesView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                DeleteBar(selectedCount: vm.selected.count, totalCount: vm.allFiles.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in vm.setAllSelected(on) }, onDelete: { confirmDelete = true })
+                DeleteBar(selectedCount: vm.selected.count, totalCount: vm.allFiles.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in MainActor.assumeIsolated { vm.setAllSelected(on) } }, onDelete: { confirmDelete = true })
                 List(vm.groups) { g in
                     Section("\(g.files.count) kopya • İsraf \(g.wasteSize.formattedBytes)") {
                         ForEach(g.files) { f in

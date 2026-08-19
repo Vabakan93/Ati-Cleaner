@@ -59,7 +59,6 @@ public enum MemoryService {
         } else if let token = PrivilegedHelper.trigger() {
             purgeSucceeded = PrivilegedHelper.waitForCompletion(token: token)
         }
-        if !purgeSucceeded { _ = runPurge() }
         let after = snapshot()?.used ?? 0
         return MemoryReliefResult(freed: freed, usedBefore: before, usedAfter: after, purgeSucceeded: purgeSucceeded)
         #else

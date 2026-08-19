@@ -31,7 +31,7 @@ struct DeleteBar: View {
     let totalCount: Int
     let selectedSize: Int64
     let permanent: Bool
-    let onToggleAll: (Bool) -> Void
+    let onToggleAll: @Sendable (Bool) -> Void
     let onDelete: () -> Void
     var body: some View {
         HStack(spacing: 12) {

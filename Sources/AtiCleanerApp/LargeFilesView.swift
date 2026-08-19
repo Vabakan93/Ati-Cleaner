@@ -54,7 +54,7 @@ import AtiCleanerCore
     }
 }
 
-struct LargeFilesView: View {
+@MainActor struct LargeFilesView: View {
     @StateObject private var vm = LargeVM()
     @AppStorage("permanentDelete") private var permanentDelete = false
     @State private var confirmDelete = false
@@ -94,7 +94,7 @@ struct LargeFilesView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                DeleteBar(selectedCount: vm.selected.count, totalCount: vm.files.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in vm.setAllSelected(on) }, onDelete: { confirmDelete = true })
+                DeleteBar(selectedCount: vm.selected.count, totalCount: vm.files.count, selectedSize: vm.selectedSize, permanent: permanentDelete, onToggleAll: { on in MainActor.assumeIsolated { vm.setAllSelected(on) } }, onDelete: { confirmDelete = true })
                 List(vm.files) { f in
                     HStack {
                         Toggle("", isOn: Binding(get: { f.isSelected }, set: { vm.setSelected(f, to: $0) }))
