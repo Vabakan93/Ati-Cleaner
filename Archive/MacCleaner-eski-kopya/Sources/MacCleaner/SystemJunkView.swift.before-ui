@@ -1,0 +1,358 @@
+import SwiftUI
+import MacCleanerCore
+
+@MainActor
+final class JunkViewModel: ObservableObject {
+    @Published var groups: [JunkGroup] = []
+    @Published var isScanning = false
+    @Published var isCleaning = false
+    @Published var progress = ScanProgress(phase: "Hazır", processed: 0, total: -1)
+    @Published var freedBytes: Int64?
+    @Published var errorMessage: String?
+    @Published var permissionWarnings: [String] = []
+    @Published var fdaGranted = AccessCheck.hasFullDiskAccess()
+
+    private let scanner = JunkScanner()
+    private var token = CancellationToken()
+
+    var totalSize: Int64 { groups.reduce(0) { $0 + $1.totalSize } }
+    var selectedSize: Int64 { groups.reduce(0) { $0 + $1.selectedSize } }
+    var selectedCount: Int { groups.reduce(0) { $0 + $1.selectedCount } }
+
+    func scan() {
+        guard !isScanning else { return }
+        isScanning = true
+        isCleaning = false
+        freedBytes = nil
+        errorMessage = nil
+        permissionWarnings = []
+        fdaGranted = AccessCheck.hasFullDiskAccess()
+        progress = ScanProgress(phase: "Başlatılıyor…", processed: 0, total: -1)
+        token = CancellationToken()
+
+        let token = self.token
+        let scanner = self.scanner
+        var groups = scanner.defaultGroups()
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+
+            for index in groups.indices {
+                if token.isCancelled { break }
+                let items = scanner.scanGroup(groups[index]) { p in
+                    DispatchQueue.main.async {
+                        self.progress = p
+                    }
+                } onPermissionDenied: { path in
+                    DispatchQueue.main.async {
+                        if !self.permissionWarnings.contains(path) {
+                            self.permissionWarnings.append(path)
+                        }
+                    }
+                } isCancelled: {
+                    token.isCancelled
+                }
+                groups[index].items = items
+                DispatchQueue.main.async {
+                    self.groups = groups
+                    self.progress = ScanProgress(
+                        phase: "\(items.count) öğe bulundu",
+                        processed: Int64(index + 1),
+                        total: Int64(groups.count),
+                        detail: nil
+                    )
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.isScanning = false
+                self.progress = ScanProgress(
+                    phase: "Tarama tamamlandı",
+                    processed: Int64(groups.count),
+                    total: Int64(groups.count),
+                    detail: nil
+                )
+            }
+        }
+    }
+
+    func cancel() {
+        token.cancel()
+    }
+
+    func clean() {
+        guard !isCleaning, selectedCount > 0 else { return }
+        isCleaning = true
+        errorMessage = nil
+        token = CancellationToken()
+        let paths = groups.flatMap { $0.items }.filter(\.isSelected).map(\.path)
+        let total = paths.count
+        let token = self.token
+        let permanent = UserDefaults.standard.bool(forKey: "permanentDelete")
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let result = FileUtils.deletePaths(paths: paths, permanent: permanent) { done, _ , freed in
+                DispatchQueue.main.async {
+                    self.progress = ScanProgress(
+                        phase: "Temizleniyor… \(done)/\(total)",
+                        processed: Int64(done),
+                        total: Int64(total),
+                        detail: nil
+                    )
+                    self.freedBytes = freed
+                }
+            } isCancelled: {
+                token.isCancelled
+            }
+
+            DispatchQueue.main.async {
+                self.isCleaning = false
+                if result.failed > 0 {
+                    self.errorMessage = "\(result.failed) öğe silinemedi: \(result.errors.prefix(3).joined(separator: " • "))"
+                } else {
+                    self.freedBytes = result.freedBytes
+                }
+                if !result.errors.isEmpty {
+                    self.progress = ScanProgress(
+                        phase: "\(result.succeeded) öğe temizlendi",
+                        processed: Int64(result.succeeded),
+                        total: Int64(total),
+                        detail: nil
+                    )
+                }
+            }
+        }
+    }
+}
+
+struct SystemJunkView: View {
+    @StateObject private var viewModel = JunkViewModel()
+    @State private var showSafetyInfo = false
+    @State private var showConfirmDelete = false
+    @AppStorage("permanentDelete") private var permanentDelete = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+
+            if !viewModel.permissionWarnings.isEmpty {
+                PermissionBanner(paths: viewModel.permissionWarnings, fdaGranted: viewModel.fdaGranted)
+            }
+
+            if viewModel.isScanning {
+                ScanningPanel(progress: viewModel.progress, onCancel: viewModel.cancel)
+            } else if viewModel.isCleaning {
+                ScanningPanel(progress: viewModel.progress, onCancel: viewModel.cancel)
+            } else if viewModel.groups.isEmpty {
+                emptyState
+            } else {
+                results
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .confirmationDialog(
+            permanentDelete
+                ? "Seçili \(viewModel.selectedCount) öğe KALICI olarak silinecek — bu işlem geri alınamaz!"
+                : "",
+            isPresented: $showConfirmDelete,
+            titleVisibility: .visible
+        ) {
+            if permanentDelete {
+                Button("Kalıcı Olarak Sil", role: .destructive) {
+                    viewModel.clean()
+                }
+                Button("Vazgeç", role: .cancel) {}
+            }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HeroHeader(
+                icon: "sparkles",
+                title: "Sistem Çöpü",
+                subtitle: "Önbellekler, günlükler, geçici dosyalar, hata raporları ve eski indirmeler. Temizlenen öğeler çöp kutusuna taşınır — isterseniz geri alabilirsiniz.",
+                tint: Theme.junkColor,
+                actionTitle: "Tara",
+                actionEnabled: !viewModel.isScanning && !viewModel.isCleaning,
+                action: viewModel.scan
+            )
+            HStack(spacing: 12) {
+                Button {
+                    showSafetyInfo.toggle()
+                } label: {
+                    Image(systemName: "info.circle.fill")
+                        .font(.system(size: 16))
+                        .foregroundStyle(Theme.accent)
+                }
+                .buttonStyle(.plain)
+                .help("Sistem Çöpü güvenli mi?")
+                .popover(isPresented: $showSafetyInfo) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Sistem Çöpü güvenli mi?")
+                            .font(.headline)
+                        Text("Ati Cleaner yalnızca şunları tarar: uygulama önbellekleri, günlükler, geçici dosyalar, hata raporları, 30 günden eski indirmeler ve geliştirici geçici dosyaları. Bunlar sistemin çalışması için gereksizdir; uygulamalar ihtiyaç duydukça önbelleklerini yeniden oluşturur.")
+                            .font(.caption)
+                        Text("Belgelerinize, fotoğraflarınıza, müziklerinize veya uygulama ayarlarınıza ASLA dokunulmaz. Tüm silinenler çöp kutusuna taşınır; geri alabilirsiniz. Bir uygulama kullanılırken önbelleği kilitliyse o öğe atlanır ve uyarı verilir.")
+                            .font(.caption)
+                        Text("İpucu: Emin olmadığınız öğenin üzerine sağ tıklayıp Finder'da inceleyebilirsiniz.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                    .frame(width: 360)
+                }
+
+                if let freed = viewModel.freedBytes {
+                    Label("\(formattedByteCount(freed)) boşaltıldı", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.system(size: 14, weight: .medium))
+                }
+                if let error = viewModel.errorMessage {
+                    Label(error, systemImage: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
+            }
+            .controlBar()
+        }
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 44))
+                .foregroundStyle(.secondary)
+            Text("Henüz tarama yapılmadı")
+                .font(.title3)
+            Text("Tarama başlatmak için 'Tara' düğmesine basın. Tarama, Mac'inizin hızına bağlı olarak 10-60 saniye sürebilir.")
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 40)
+    }
+
+    private var results: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("Toplam: \(formattedByteCount(viewModel.totalSize))")
+                    .font(.headline)
+                Spacer()
+                if viewModel.selectedCount > 0 {
+                    Text("Seçili: \(formattedByteCount(viewModel.selectedSize))")
+                        .font(.headline)
+                    Button("Temizle (\(viewModel.selectedCount))") {
+                        if permanentDelete {
+                            showConfirmDelete = true
+                        } else {
+                            viewModel.clean()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    Text("Temizlenecek öğe seçin")
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            List {
+                ForEach($viewModel.groups) { $group in
+                    JunkGroupSection(group: $group)
+                }
+            }
+            .listStyle(.inset)
+        }
+    }
+}
+
+struct JunkGroupSection: View {
+    @Binding var group: JunkGroup
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $group.isExpanded) {
+            ForEach($group.items) { $item in
+                HStack(spacing: 10) {
+                    Image(systemName: item.isDirectory ? "folder" : "doc")
+                        .foregroundStyle(.secondary)
+                        .frame(width: 20)
+                    Toggle(item.name, isOn: $item.isSelected)
+                        .toggleStyle(.checkbox)
+                        .lineLimit(1)
+                    Spacer()
+                    Text(formattedByteCount(item.size))
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                    if let date = item.date {
+                        Text(date, style: .date)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 90, alignment: .trailing)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: group.iconName)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 20)
+                Text(group.name)
+                    .font(.headline)
+                Text("\(group.itemCount) öğe")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(formattedByteCount(group.totalSize))
+                    .font(.headline.monospacedDigit())
+                Button(group.selectedCount == group.itemCount && group.itemCount > 0 ? "Tümünü Bırak" : "Tümünü Seç") {
+                    group.setAllSelected(group.selectedCount != group.itemCount)
+                }
+                .buttonStyle(.link)
+                .font(.caption)
+            }
+        }
+    }
+}
+
+struct ScanningPanel: View {
+    let progress: ScanProgress
+    let onCancel: () -> Void
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text(progress.phase)
+                .font(.headline)
+            if progress.isDeterminate {
+                ProgressView(value: progress.fraction)
+                    .progressViewStyle(.linear)
+            } else {
+                ProgressView()
+                    .progressViewStyle(.linear)
+            }
+            if let detail = progress.detail {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            HStack {
+                if progress.isDeterminate {
+                    Text("%\(Int(progress.fraction * 100))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button("İptal") {
+                    onCancel()
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .controlBackgroundColor))
+        )
+    }
+}
