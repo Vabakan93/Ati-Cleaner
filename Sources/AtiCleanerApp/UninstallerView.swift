@@ -53,12 +53,14 @@ struct UninstallerView: View {
 
     private func uninstall(_ app: InstalledApp) {
         removing = true
+        let path = app.path
+        let name = app.name
         Task {
-            let result = await Task.detached { FileUtilities.moveToTrash(paths: [app.path]) }.value
+            let result = await Task.detached { FileUtilities.moveToTrash(paths: [path]) }.value
             removing = false
-            apps.removeAll { $0.path == app.path }
+            apps.removeAll { $0.path == path }
             if result.failed.isEmpty {
-                resultMessage = "\(app.name) Çöp Kutusu'na taşındı."
+                resultMessage = "\(name) Çöp Kutusu'na taşındı."
             } else {
                 resultMessage = result.failed.map { "\($0.path): \($0.reason)" }.joined(separator: "\n")
             }
