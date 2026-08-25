@@ -1,7 +1,7 @@
 import SwiftUI
 import AtiCleanerCore
 
-struct UninstallerView: View {
+@MainActor struct UninstallerView: View {
     @State private var apps: [InstalledApp] = []
     @State private var query = ""
     @State private var removing = false
