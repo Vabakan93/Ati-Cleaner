@@ -1,7 +1,7 @@
 import SwiftUI
 import AtiCleanerCore
 
-struct MemoryView: View {
+@MainActor struct MemoryView: View {
     @State private var snap = MemoryService.snapshot()
     @State private var relieving = false
     @State private var lastRelief: String?
