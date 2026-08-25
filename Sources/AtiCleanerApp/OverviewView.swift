@@ -36,7 +36,7 @@ import AtiCleanerCore
     }
 }
 
-struct OverviewView: View {
+@MainActor struct OverviewView: View {
     @StateObject private var vm = OverviewVM()
     @AppStorage("permanentDelete") private var permanentDelete = false
     @State private var confirmClean = false

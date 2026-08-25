@@ -59,7 +59,7 @@ import AtiCleanerCore
     }
 }
 
-struct SystemDataView: View {
+@MainActor struct SystemDataView: View {
     @StateObject private var vm = SystemDataVM()
     @State private var confirmDelete = false
 

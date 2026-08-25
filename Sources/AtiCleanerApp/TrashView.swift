@@ -54,7 +54,7 @@ import AtiCleanerCore
     }
 }
 
-struct TrashView: View {
+@MainActor struct TrashView: View {
     @StateObject private var vm = TrashVM()
     @State private var confirmDelete = false
 
